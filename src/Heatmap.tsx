@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as d3Hierarchy from 'd3-hierarchy';
 import * as d3Array from 'd3-array';
-import { motion, AnimatePresence, useSpring, useMotionValue } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import type { CryptoAsset, Currency, Timeframe } from './types';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
