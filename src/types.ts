@@ -11,7 +11,6 @@ export interface CryptoAsset {
   change7d: number;
   change30d: number;
   marketCap: number;
-  category: string;
   image: string;
   rank: number;
 }
@@ -20,5 +19,7 @@ export const INITIAL_WATCHLIST = [
   'bitcoin', 'ethereum', 'solana', 'binancecoin', 'ripple', 'dogecoin', 
   'cardano', 'tron', 'polkadot', 'chainlink', 'avalanche-2', 'shiba-inu', 
   'toncoin', 'near', 'uniswap', 'polygon', 'litecoin', 'pepe', 'aptos', 
-  'cosmos', 'stellar', 'monero', 'okb', 'render-token', 'arbitrum'
+  'cosmos', 'stellar', 'monero', 'okb', 'render-token', 'arbitrum',
+  'kaspa', 'optimism', 'mantle', 'hedera-hashgraph', 'cosmos', 'fantom',
+  'thorchain', 'jupiter-exchange-solana', 'pyth-network', 'bonk'
 ];
