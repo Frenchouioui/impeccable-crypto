@@ -113,16 +113,17 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
           
           if (width <= 4 || height <= 4) return null;
 
-          // Dynamic font sizing
+          // Ultra-permissive visibility for symbols
           const baseSize = Math.min(width, height);
-          const symbolSize = Math.min(Math.max(baseSize / 4, 10), 42);
-          const showDetails = width > 100 && height > 80;
-          const showSymbol = width > 30 && height > 20;
+          const symbolSize = Math.min(Math.max(baseSize / 3, 8), 48);
+          const showDetails = width > 70 && height > 50;
+          const showSymbol = width > 15 && height > 12;
 
           return (
             <motion.div
               key={asset.id}
               layoutId={asset.id}
+              title={`${asset.name}: ${currencySymbol}${asset.price.toLocaleString()} (${asset.change24h.toFixed(2)}%)`}
               initial={{ opacity: 0 }}
               animate={{ 
                 opacity: 1,

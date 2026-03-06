@@ -76,9 +76,8 @@ function MarketApp() {
               <span className="w-1.5 h-1.5 rounded-full bg-success shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse" />
               Intelligence Terminal
             </div>
-            <h1 className="text-7xl md:text-9xl font-serif italic font-extralight tracking-tighter leading-[0.8]">
-              Impeccable<br />
-              <span className="not-italic font-medium text-white/90">Market</span>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif italic font-extralight tracking-tighter leading-none">
+              Impeccable <span className="not-italic font-medium text-white/90">Market</span>
             </h1>
           </div>
 
