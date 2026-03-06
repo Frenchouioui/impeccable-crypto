@@ -65,6 +65,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 h-full">
+      {/* MAIN VISUALIZATION MATRIX */}
       <div 
         ref={containerRef} 
         className={cn(
@@ -95,8 +96,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
             
             if (width < 2 || height < 2) return null;
 
-            const symbolSize = Math.min(Math.max(Math.min(width, height) / 3, 12), 64);
+            // DYNAMIC LEGIBILITY ENGINE
+            const symbolSize = Math.min(Math.max(Math.min(width, height) / 3.5, 12), 64);
             const showSymbol = width > 30 && height > 25;
+            const showDetails = width > 100 && height > 80;
 
             return (
               <motion.div
@@ -112,14 +115,34 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                   isPos ? "bg-success/[0.02] border-success/10 hover:bg-success/20 hover:border-success/60" : "bg-danger/[0.02] border-danger/10 hover:bg-danger/20 hover:border-danger/60"
                 )}
               >
-                <div className="flex flex-col h-full items-center justify-center text-center">
+                <div className="flex flex-col h-full items-center justify-center text-center gap-1">
                   {showSymbol ? (
-                    <span 
-                      className="font-serif italic font-light tracking-tighter transition-all duration-700 group-hover:scale-110"
-                      style={{ fontSize: `${symbolSize}px`, color: isPos ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)' }}
-                    >
-                      {asset.symbol.toUpperCase()}
-                    </span>
+                    <>
+                      <span 
+                        className="font-serif italic font-light tracking-tighter transition-all duration-700 group-hover:scale-110"
+                        style={{ fontSize: `${symbolSize}px`, color: isPos ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)' }}
+                      >
+                        {asset.symbol.toUpperCase()}
+                      </span>
+                      
+                      {showDetails && (
+                        <motion.div 
+                          initial={{ opacity: 0 }} 
+                          animate={{ opacity: 1 }}
+                          className="flex flex-col items-center gap-1"
+                        >
+                          <span className="font-mono text-[11px] text-white/30 tracking-tight">
+                            {currencySymbol}{asset.price.toLocaleString(undefined, { maximumFractionDigits: asset.price < 1 ? 4 : 2 })}
+                          </span>
+                          <span className={cn(
+                            "text-[10px] font-black px-2 py-0.5 rounded-full border",
+                            isPos ? "bg-success/10 border-success/20 text-success" : "bg-danger/10 border-danger/20 text-danger"
+                          )}>
+                            {isPos ? '+' : ''}{change.toFixed(2)}%
+                          </span>
+                        </motion.div>
+                      )}
+                    </>
                   ) : (
                     <div className={cn("w-2 h-2 rounded-full animate-pulse", isPos ? "bg-success/40" : "bg-danger/40")} />
                   )}
@@ -131,6 +154,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
         </AnimatePresence>
       </div>
 
+      {/* SIDE DATA INSPECTOR (Luxury Panel) */}
       <aside className="w-full lg:w-[400px] h-full bg-white/[0.02] border border-white/5 rounded-[3rem] p-10 flex flex-col justify-between backdrop-blur-2xl">
         <AnimatePresence mode="wait">
           {hoveredAsset ? (
