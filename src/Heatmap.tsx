@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import * as d3Hierarchy from 'd3-hierarchy';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { CryptoAsset, Currency, Timeframe } from './types';
-import { Maximize2, Minimize2, Globe, Info, Activity } from 'lucide-react';
+import { Maximize2, Minimize2, Globe, Info, Activity, TrendingUp, TrendingDown } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -64,12 +64,12 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
   const currencySymbol = currency === 'usd' ? '$' : '€';
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 h-full">
+    <div className="flex flex-col lg:flex-row gap-8 h-full min-h-0">
       {/* MAIN VISUALIZATION MATRIX */}
       <div 
         ref={containerRef} 
         className={cn(
-          "relative flex-grow bg-[#050505] border border-white/5 backdrop-blur-3xl transition-all duration-1000 shadow-2xl overflow-hidden",
+          "relative flex-grow bg-[#050505] border border-white/5 backdrop-blur-3xl transition-all duration-1000 shadow-2xl overflow-hidden min-h-[400px]",
           isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "rounded-[3rem]"
         )}
       >
@@ -96,7 +96,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
             
             if (width < 2 || height < 2) return null;
 
-            // DYNAMIC LEGIBILITY ENGINE
             const symbolSize = Math.min(Math.max(Math.min(width, height) / 3.5, 12), 64);
             const showSymbol = width > 30 && height > 25;
             const showDetails = width > 100 && height > 80;
@@ -155,11 +154,11 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
       </div>
 
       {/* SIDE DATA INSPECTOR (Luxury Panel) */}
-      <aside className="w-full lg:w-[400px] h-full bg-white/[0.02] border border-white/5 rounded-[3rem] p-10 flex flex-col justify-between backdrop-blur-2xl">
+      <aside className="w-full lg:w-[450px] h-full bg-white/[0.02] border border-white/5 rounded-[3rem] p-10 flex flex-col justify-between backdrop-blur-2xl overflow-y-auto">
         <AnimatePresence mode="wait">
           {hoveredAsset ? (
             <motion.div 
-              key={hoveredAsset.id}
+              key={`${hoveredAsset.id}-${currency}`} // Key update on currency change
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -178,10 +177,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                 <div className="h-px w-full bg-white/5" />
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 gap-8">
                 <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-widest font-black text-white/10">Current Value</p>
-                  <p className="text-5xl font-mono tracking-tighter font-light text-white/90">
+                  <p className="text-[10px] uppercase tracking-widest font-black text-white/10">Institutional Valuation</p>
+                  <p className="text-6xl font-mono tracking-tighter font-light text-white/90">
                     {currencySymbol}{hoveredAsset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -189,14 +188,17 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     { label: 'Market Cap', value: `${currencySymbol}${(hoveredAsset.marketCap / 1e9).toFixed(2)}B` },
-                    { label: 'Global Rank', value: `#${hoveredAsset.rank}` },
-                    { label: '24h Change', value: `${hoveredAsset.change24h.toFixed(2)}%`, pos: hoveredAsset.change24h >= 0 },
-                    { label: '7d Change', value: `${hoveredAsset.change7d.toFixed(2)}%`, pos: hoveredAsset.change7d >= 0 },
+                    { label: 'Market Rank', value: `#${hoveredAsset.rank}` },
+                    { label: '1h Momentum', value: `${hoveredAsset.change1h.toFixed(2)}%`, pos: hoveredAsset.change1h >= 0 },
+                    { label: '24h Momentum', value: `${hoveredAsset.change24h.toFixed(2)}%`, pos: hoveredAsset.change24h >= 0 },
+                    { label: '7d Horizon', value: `${hoveredAsset.change7d.toFixed(2)}%`, pos: hoveredAsset.change7d >= 0 },
+                    { label: '30d Horizon', value: `${hoveredAsset.change30d.toFixed(2)}%`, pos: hoveredAsset.change30d >= 0 },
                   ].map((stat, i) => (
-                    <div key={i} className="bg-white/[0.03] border border-white/5 p-5 rounded-2xl space-y-2">
+                    <div key={i} className="bg-white/[0.02] border border-white/5 p-5 rounded-2xl space-y-2">
                       <p className="text-[9px] uppercase tracking-[0.3em] font-black text-white/10">{stat.label}</p>
-                      <p className={cn("font-mono text-sm tracking-tighter font-bold", stat.pos !== undefined ? (stat.pos ? "text-success" : "text-danger") : "text-white/60")}>
-                        {stat.pos !== undefined && (stat.pos ? '↑ ' : '↓ ')}{stat.value}
+                      <p className={cn("font-mono text-sm tracking-tighter font-bold flex items-center gap-1.5", stat.pos !== undefined ? (stat.pos ? "text-success" : "text-danger") : "text-white/60")}>
+                        {stat.pos !== undefined && (stat.pos ? <TrendingUp size={12}/> : <TrendingDown size={12}/>)}
+                        {stat.value}
                       </p>
                     </div>
                   ))}
@@ -205,24 +207,24 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
 
               <div className="space-y-4">
                 <button className="w-full py-5 rounded-full bg-white text-black text-[10px] uppercase tracking-[0.4em] font-black hover:bg-zinc-200 transition-all flex items-center justify-center gap-3">
-                  <Globe size={14} /> Full Terminal Profile
+                  <Globe size={14} /> Global Terminal Profile
                 </button>
                 <button className="w-full py-5 rounded-full border border-white/10 text-white text-[10px] uppercase tracking-[0.4em] font-black hover:bg-white/5 transition-all flex items-center justify-center gap-3">
-                  <Info size={14} /> Ecosystem Insights
+                  <Info size={14} /> Network Parameters
                 </button>
               </div>
             </motion.div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-20">
               <Activity size={48} strokeWidth={1} className="animate-pulse" />
-              <p className="text-[10px] uppercase tracking-[0.8em] font-black">Awaiting Grid Interaction</p>
+              <p className="text-[10px] uppercase tracking-[0.8em] font-black">Waiting for Data Stream</p>
             </div>
           )}
         </AnimatePresence>
 
         <div className="pt-10 border-t border-white/5 flex justify-between items-center text-[9px] uppercase tracking-[0.4em] font-black text-white/10">
           <span>SECURED FEED</span>
-          <span>© 2026 PROD</span>
+          <span>© 2026 NEXUS</span>
         </div>
       </aside>
     </div>
