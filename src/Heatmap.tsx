@@ -23,9 +23,6 @@ const TooltipPortal = ({ asset, mouseX, mouseY, currency, currencySymbol }: { as
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
-  const springX = useSpring(mouseX, { stiffness: 1000, damping: 100 });
-  const springY = useSpring(mouseY, { stiffness: 1000, damping: 100 });
-
   useEffect(() => {
     const update = () => {
       if (!ref.current) return;
