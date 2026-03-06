@@ -36,6 +36,22 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
     return () => obs.disconnect();
   }, [isFullscreen]);
 
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   const leaves = useMemo(() => {
     if (!dimensions.width || data.length === 0) return [];
 
@@ -73,18 +89,16 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
           isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "rounded-[3rem]"
         )}
       >
-        <div className="absolute top-8 right-8 z-30 flex gap-2">
-          <button 
-            onClick={() => {
-              if (!document.fullscreenElement) containerRef.current?.requestFullscreen();
-              else document.exitFullscreen();
-              setIsFullscreen(!isFullscreen);
-            }}
-            className="p-4 rounded-full bg-white/5 border border-white/10 hover:bg-white text-white hover:text-black transition-all duration-500 backdrop-blur-xl"
-          >
-            {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-          </button>
-        </div>
+        {!isFullscreen && (
+          <div className="absolute top-8 right-8 z-30 flex gap-2">
+            <button 
+              onClick={toggleFullscreen}
+              className="p-4 rounded-full bg-white/5 border border-white/10 hover:bg-white text-white hover:text-black transition-all duration-500 backdrop-blur-xl"
+            >
+              <Maximize2 size={20} />
+            </button>
+          </div>
+        )}
 
         <AnimatePresence mode="popLayout">
           {leaves.map((leaf: any) => {
