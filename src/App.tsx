@@ -60,7 +60,7 @@ function MarketApp() {
         throw error
       }
     },
-    refetchInterval: 60000,
+    refetchInterval: 30000,
     staleTime: 0, // Force fresh data on currency/watchlist change
   })
 

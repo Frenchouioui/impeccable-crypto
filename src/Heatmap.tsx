@@ -145,7 +145,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                           className="flex flex-col items-center gap-1"
                         >
                           <span className="font-mono text-[11px] text-white/30 tracking-tight">
-                            {currencySymbol}{asset.price.toLocaleString(undefined, { maximumFractionDigits: asset.price < 1 ? 4 : 2 })}
+                            {currencySymbol}{asset.price.toLocaleString(undefined, { 
+                              minimumFractionDigits: asset.price < 0.01 ? 6 : asset.price < 1 ? 4 : 2,
+                              maximumFractionDigits: asset.price < 0.01 ? 8 : asset.price < 1 ? 4 : 2 
+                            })}
                           </span>
                           <span className={cn(
                             "text-[10px] font-black px-2 py-0.5 rounded-full border",

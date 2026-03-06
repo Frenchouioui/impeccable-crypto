@@ -15,7 +15,11 @@ export default async function handler(req: any, res: any) {
       },
     });
 
-    // Add CORS headers to allow your frontend to communicate with this proxy
+    // ABSOLUTE ACCURACY: Disable all caching at the Edge/Browser level
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
