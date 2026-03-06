@@ -22,44 +22,60 @@ function MarketApp() {
     localStorage.setItem('impeccable-watchlist', JSON.stringify(watchlist))
   }, [watchlist])
 
-  const { data: assets, isLoading, isError } = useQuery({
+  const { data: assets, isLoading, isError, refetch } = useQuery({
     queryKey: ['marketData', currency, watchlist],
     queryFn: async () => {
-      // If watchlist is empty, we fetch top 100 to avoid "Connection Lost"
-      const params: any = {
-        vs_currency: currency,
-        order: 'market_cap_desc',
-        per_page: 250,
-        sparkline: false,
-        price_change_percentage: '24h'
-      }
+      try {
+        const params: any = {
+          vs_currency: currency,
+          order: 'market_cap_desc',
+          per_page: 250,
+          sparkline: false,
+          price_change_percentage: '24h'
+        }
 
-      if (watchlist.length > 0) {
-        params.ids = watchlist.join(',')
-      }
+        const validWatchlist = watchlist.filter(id => id.trim() !== '')
+        if (validWatchlist.length > 0) {
+          params.ids = validWatchlist.join(',')
+        }
 
-      const response = await axios.get(
-        `https://api.coingecko.com/api/v3/coins/markets`, { params }
-      )
-      
-      return response.data.map((coin: any) => ({
-        id: coin.id,
-        symbol: coin.symbol,
-        name: coin.name,
-        price: coin.current_price,
-        change24h: coin.price_change_percentage_24h || 0,
-        marketCap: coin.market_cap,
-        rank: coin.market_cap_rank,
-        image: coin.image
-      })) as CryptoAsset[]
+        const response = await axios.get(
+          `https://api.coingecko.com/api/v3/coins/markets`, { params }
+        )
+        
+        // Success: Cache this data in local storage as an emergency fallback
+        const mappedData = response.data.map((coin: any) => ({
+          id: coin.id,
+          symbol: coin.symbol,
+          name: coin.name,
+          price: coin.current_price,
+          change24h: coin.price_change_percentage_24h || 0,
+          marketCap: coin.market_cap,
+          rank: coin.market_cap_rank,
+          image: coin.image
+        }))
+        localStorage.setItem('impeccable-fallback-data', JSON.stringify(mappedData))
+        return mappedData as CryptoAsset[]
+      } catch (error: any) {
+        // Fallback Mechanism: If API fails (e.g. Rate Limit 429), use cached data
+        const cached = localStorage.getItem('impeccable-fallback-data')
+        if (cached) {
+          console.warn('API Rate Limit hit. Using cached data.')
+          return JSON.parse(cached) as CryptoAsset[]
+        }
+        throw error
+      }
     },
-    refetchInterval: 30000,
-    retry: 3
+    refetchInterval: 60000, // Increase interval to 1 minute to avoid rate limits
+    staleTime: 30000,
+    retry: 2
   })
 
   const toggleAsset = (id: string) => {
+    const cleanId = id.trim().toLowerCase()
+    if (!cleanId) return
     setWatchlist(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+      prev.includes(cleanId) ? prev.filter(item => item !== cleanId) : [...prev, cleanId]
     )
   }
 
@@ -69,7 +85,7 @@ function MarketApp() {
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-50" />
 
       <div className="max-w-[1800px] mx-auto p-8 md:p-16 space-y-16">
-        {/* Navigation - Impeccable Style: Generous Spacing & High Contrast */}
+        {/* Navigation - Impeccable Style */}
         <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-12">
           <div className="space-y-4">
             <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.5em] font-black text-white/20">
@@ -104,13 +120,13 @@ function MarketApp() {
           <div className="flex gap-16">
             <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-widest font-bold text-white/20 text-center md:text-left">Network Status</div>
-              <div className="text-sm font-mono tracking-tighter text-success flex items-center gap-2 justify-center md:justify-start">
-                Synchronized
+              <div className={`text-sm font-mono tracking-tighter flex items-center gap-2 justify-center md:justify-start ${isError ? 'text-danger' : 'text-success'}`}>
+                {isError ? 'Limited Connectivity' : 'Synchronized'}
               </div>
             </div>
             <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-widest font-bold text-white/20 text-center md:text-left">Active Nodes</div>
-              <div className="text-sm font-mono tracking-tighter text-center md:text-left">{watchlist.length} Assets</div>
+              <div className="text-sm font-mono tracking-tighter text-center md:text-left">{watchlist.length || 250} Assets</div>
             </div>
           </div>
           
@@ -126,14 +142,23 @@ function MarketApp() {
 
         {/* Main Interface */}
         <main className="relative">
-          {isLoading ? (
+          {isLoading && !assets ? (
             <div className="h-[75vh] flex flex-col items-center justify-center gap-6 bg-white/[0.01] rounded-[3rem] border border-white/5">
               <Loader2 className="animate-spin text-white/10" size={64} strokeWidth={1} />
               <span className="text-[10px] uppercase tracking-[0.8em] font-black text-white/20">Initialising Grid</span>
             </div>
-          ) : isError ? (
-            <div className="h-[75vh] flex items-center justify-center text-danger/40 uppercase tracking-[0.5em] font-black text-xs">
-              System Interface Failure
+          ) : isError && !assets ? (
+            <div className="h-[75vh] flex flex-col items-center justify-center gap-6 bg-white/[0.01] rounded-[3rem] border border-white/5">
+              <div className="text-danger/40 uppercase tracking-[0.5em] font-black text-xs text-center px-12 leading-relaxed">
+                System Interface Failure<br/>
+                <span className="text-[9px] opacity-40 mt-4 block">API Rate Limit Exceeded. Please wait a moment.</span>
+              </div>
+              <button 
+                onClick={() => refetch()}
+                className="px-8 py-3 rounded-full border border-danger/20 hover:bg-danger/10 text-[10px] uppercase tracking-widest font-black text-danger transition-all"
+              >
+                Manual Reconnect
+              </button>
             </div>
           ) : (
             <Heatmap data={assets || []} currency={currency} />
