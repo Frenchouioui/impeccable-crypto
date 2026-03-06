@@ -4,15 +4,15 @@ import axios from 'axios'
 import { Heatmap } from './Heatmap'
 import type { CryptoAsset, Currency, Timeframe } from './types'
 import { INITIAL_WATCHLIST } from './types'
-import { Settings2, Loader2, DollarSign, Euro, ChevronRight } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Loader2, DollarSign, Euro } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 const queryClient = new QueryClient()
 
 function MarketApp() {
   const [currency, setCurrency] = useState<Currency>('usd')
   const [timeframe, setTimeframe] = useState<Timeframe>('24h')
-  const [watchlist, setWatchlist] = useState<string[]>(() => {
+  const [watchlist] = useState<string[]>(() => {
     const saved = localStorage.getItem('impeccable-watchlist-v2')
     return saved ? JSON.parse(saved) : INITIAL_WATCHLIST
   })
