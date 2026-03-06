@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import * as d3Hierarchy from 'd3-hierarchy';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { CryptoAsset, Currency, Timeframe } from './types';
-import { Maximize2, Minimize2, Globe, Info, Activity, TrendingUp, TrendingDown } from 'lucide-react';
+import { Maximize2, Globe, Info, Activity, TrendingUp, TrendingDown } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
