@@ -6,6 +6,7 @@ import type { CryptoAsset, Currency, Timeframe } from './types'
 import { INITIAL_WATCHLIST } from './types'
 import { Loader2, DollarSign, Euro, Settings2, X, Search, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 
 const queryClient = new QueryClient()
 
@@ -228,6 +229,7 @@ function MarketApp() {
           </>
         )}
       </AnimatePresence>
+      <SpeedInsights />
     </div>
   )
 }
