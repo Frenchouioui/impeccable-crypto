@@ -5,7 +5,6 @@ import { Heatmap } from './Heatmap'
 import type { CryptoAsset, Currency, Timeframe } from './types'
 import { INITIAL_WATCHLIST } from './types'
 import { Loader2, DollarSign, Euro } from 'lucide-react'
-import { motion } from 'framer-motion'
 
 const queryClient = new QueryClient()
 
@@ -60,11 +59,9 @@ function MarketApp() {
 
   return (
     <div className="min-h-screen bg-[#020202] text-white selection:bg-white selection:text-black antialiased overflow-hidden">
-      {/* Editorial Noise Overlay */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-[100]" />
 
       <div className="max-w-[2200px] mx-auto p-10 md:p-20 space-y-16 h-screen flex flex-col">
-        {/* Institutional Header */}
         <header className="flex justify-between items-end">
           <div className="space-y-6">
             <div className="flex items-center gap-4 text-[11px] uppercase tracking-[0.8em] font-black text-white/20">
@@ -77,26 +74,24 @@ function MarketApp() {
           </div>
 
           <div className="flex items-center gap-10">
-            {/* Currency Controls */}
             <div className="flex items-center gap-2 bg-white/[0.03] p-1.5 rounded-full border border-white/5 backdrop-blur-3xl">
               {(['usd', 'eur'] as const).map(curr => (
                 <button 
                   key={curr}
                   onClick={() => setCurrency(curr)}
-                  className={`flex items-center gap-3 px-10 py-3.5 rounded-full text-[11px] uppercase tracking-[0.4em] font-black transition-all duration-700 ${currency === curr ? 'bg-white text-black shadow-2xl' : 'text-white/20 hover:text-white'}`}
+                  className={`flex items-center gap-3 px-10 py-3.5 rounded-full text-[11px] uppercase tracking-[0.3em] font-black transition-all duration-700 ${currency === curr ? 'bg-white text-black shadow-2xl' : 'text-white/20 hover:text-white'}`}
                 >
                   {curr === 'usd' ? <DollarSign size={13} /> : <Euro size={13} />} {curr}
                 </button>
               ))}
             </div>
 
-            {/* Timeframe Controls */}
             <div className="flex items-center gap-2 bg-white/[0.03] p-1.5 rounded-full border border-white/5 backdrop-blur-3xl">
               {(['1h', '24h', '7d', '30d'] as const).map(t => (
                 <button 
                   key={t}
                   onClick={() => setTimeframe(t)}
-                  className={`px-8 py-3.5 rounded-full text-[11px] uppercase tracking-[0.4em] font-black transition-all duration-700 ${timeframe === t ? 'bg-white text-black shadow-2xl' : 'text-white/20 hover:text-white'}`}
+                  className={`px-8 py-4 rounded-full text-[11px] uppercase tracking-[0.3em] font-black transition-all duration-700 ${timeframe === t ? 'bg-white text-black shadow-2xl' : 'text-white/20 hover:text-white'}`}
                 >
                   {t}
                 </button>
@@ -105,7 +100,6 @@ function MarketApp() {
           </div>
         </header>
 
-        {/* Main Intelligence Grid */}
         <main className="flex-grow relative">
           {isLoading && !assets ? (
             <div className="h-full w-full flex flex-col items-center justify-center gap-10 bg-white/[0.01] rounded-[4rem] border border-white/5">
@@ -121,7 +115,6 @@ function MarketApp() {
           )}
         </main>
 
-        {/* Dynamic Status Bar */}
         <footer className="flex justify-between items-center pt-10 border-t border-white/5">
           <div className="flex gap-20 text-[10px] uppercase tracking-[0.6em] font-black text-white/10">
             <div className="flex items-center gap-3">

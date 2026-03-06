@@ -40,13 +40,12 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
     if (!dimensions.width || data.length === 0) return [];
 
     const root = d3Hierarchy.hierarchy({ name: 'root', children: data })
-      // MATH 2026: Cubed root scaling balances massive BTC vs Alts for perfect grid geometry
       .sum((d: any) => Math.pow(Math.max(d.marketCap || 0, 1), 0.35))
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
     const treemap = d3Hierarchy.treemap<any>()
       .size([dimensions.width, dimensions.height])
-      .tile(d3Hierarchy.treemapBinary) // Binary tiling is the most stable for large data sets
+      .tile(d3Hierarchy.treemapBinary)
       .paddingInner(2)
       .paddingOuter(2)
       .round(true);
@@ -65,8 +64,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
   const currencySymbol = currency === 'usd' ? '$' : '€';
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 h-[85vh]">
-      {/* MAIN VISUALIZATION MATRIX */}
+    <div className="flex flex-col lg:flex-row gap-8 h-full">
       <div 
         ref={containerRef} 
         className={cn(
@@ -97,7 +95,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
             
             if (width < 2 || height < 2) return null;
 
-            // DYNAMIC LEGIBILITY ENGINE
             const symbolSize = Math.min(Math.max(Math.min(width, height) / 3, 12), 64);
             const showSymbol = width > 30 && height > 25;
 
@@ -127,7 +124,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                     <div className={cn("w-2 h-2 rounded-full animate-pulse", isPos ? "bg-success/40" : "bg-danger/40")} />
                   )}
                 </div>
-                {/* Visual Glass Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </motion.div>
             );
@@ -135,7 +131,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
         </AnimatePresence>
       </div>
 
-      {/* SIDE DATA INSPECTOR (Luxury Panel) */}
       <aside className="w-full lg:w-[400px] h-full bg-white/[0.02] border border-white/5 rounded-[3rem] p-10 flex flex-col justify-between backdrop-blur-2xl">
         <AnimatePresence mode="wait">
           {hoveredAsset ? (
