@@ -4,7 +4,7 @@ import axios from 'axios'
 import { Heatmap } from './Heatmap'
 import type { CryptoAsset, Currency } from './types'
 import { INITIAL_WATCHLIST } from './types'
-import { Search, Plus, X, Globe, DollarSign, Euro, Settings2, Loader2 } from 'lucide-react'
+import { Search, Plus, X, DollarSign, Euro, Settings2, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const queryClient = new QueryClient()
