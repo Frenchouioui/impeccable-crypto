@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as d3Hierarchy from 'd3-hierarchy';
 import * as d3Array from 'd3-array';
@@ -18,70 +18,84 @@ interface HeatmapProps {
   timeframe: Timeframe;
 }
 
-// QUADRANT-AWARE TOOLTIP PORTAL
+// TOOLTIP PORTAL : ANTI-CLIPPING ENGINE
 const TooltipPortal = ({ asset, mouseX, mouseY, currency, currencySymbol }: { asset: CryptoAsset, mouseX: any, mouseY: any, currency: string, currencySymbol: string }) => {
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  const ref = React.useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+
+  const springX = useSpring(mouseX, { stiffness: 1000, damping: 100 });
+  const springY = useSpring(mouseY, { stiffness: 1000, damping: 100 });
 
   useEffect(() => {
-    if (ref.current) {
-      setSize({ width: ref.current.offsetWidth, height: ref.current.offsetHeight });
-    }
-  }, [asset]);
+    const update = () => {
+      if (!ref.current) return;
+      const width = ref.current.offsetWidth;
+      const height = ref.current.offsetHeight;
+      const x = mouseX.get();
+      const y = mouseY.get();
 
-  const x = useSpring(mouseX, { stiffness: 2000, damping: 120 });
-  const y = useSpring(mouseY, { stiffness: 2000, damping: 120 });
+      // Smart flip logic
+      let finalX = x + 30;
+      let finalY = y + 30;
 
-  // Robust boundary detection
-  const isRight = mouseX.get() > window.innerWidth - 400;
-  const isBottom = mouseY.get() > window.innerHeight - 400;
+      if (x + width + 50 > window.innerWidth) finalX = x - width - 30;
+      if (y + height + 50 > window.innerHeight) finalY = y - height - 30;
+
+      setPos({ x: finalX, y: finalY });
+    };
+    const unsubscribeX = mouseX.on("change", update);
+    const unsubscribeY = mouseY.on("change", update);
+    update();
+    return () => { unsubscribeX(); unsubscribeY(); };
+  }, [mouseX, mouseY, asset]);
 
   return createPortal(
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, scale: 0.98 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
+      exit={{ opacity: 0, scale: 0.95 }}
       style={{
         position: 'fixed',
-        left: x,
-        top: y,
+        left: pos.x,
+        top: pos.y,
         pointerEvents: 'none',
-        zIndex: 100000,
-        x: isRight ? -size.width - 40 : 40,
-        y: isBottom ? -size.height - 40 : 40,
+        zIndex: 99999,
       }}
-      className="p-10 bg-[#0a0a0a]/95 border border-white/10 backdrop-blur-[80px] rounded-[3rem] shadow-[0_60px_120px_rgba(0,0,0,1)] min-w-[380px] space-y-8"
+      className="p-8 bg-[#080808] border border-white/10 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_50px_100px_rgba(0,0,0,1)] min-w-[320px] space-y-6"
     >
-      <div className="flex justify-between items-start">
-        <div className="space-y-4">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-14 rounded-[1.5rem] bg-white/5 p-3.5 flex items-center justify-center border border-white/10 shadow-inner">
-              <img src={asset.image} className="w-full h-full rounded-full" alt="" />
-            </div>
-            <span className="text-5xl font-serif italic tracking-tighter leading-none text-white/95">{asset.name}</span>
+      <div className="flex justify-between items-start gap-8">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/5 p-2 border border-white/10">
+            <img src={asset.image} className="w-full h-full rounded-full" alt="" />
           </div>
-          <div className="text-[13px] uppercase tracking-[0.8em] font-black text-white/20 pl-1">{asset.symbol} / {currency.toUpperCase()}</div>
+          <div>
+            <div className="text-3xl font-serif italic text-white leading-none">{asset.name}</div>
+            <div className="text-[10px] uppercase tracking-[0.4em] font-black text-white/20 mt-2">{asset.symbol} / {currency.toUpperCase()}</div>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="text-[11px] uppercase tracking-widest font-black text-white/10">Global Rank</span>
-          <span className="text-4xl font-mono text-white/90">#{asset.rank}</span>
+        <div className="text-right">
+          <div className="text-[9px] uppercase tracking-widest font-black text-white/10">Rank</div>
+          <div className="text-xl font-mono text-white/80">#{asset.rank}</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Current Valuation', value: `${currencySymbol}${asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
-          { label: 'Market Capitalization', value: `${currencySymbol}${(asset.marketCap / 1e9).toFixed(2)}B` },
-          { label: '1H Horizon', value: `${asset.change1h.toFixed(2)}%`, pos: asset.change1h >= 0 },
-          { label: '24H Horizon', value: `${asset.change24h.toFixed(2)}%`, pos: asset.change24h >= 0 },
-          { label: '7D Trajectory', value: `${asset.change7d.toFixed(2)}%`, pos: asset.change7d >= 0 },
-          { label: '30D Trajectory', value: `${asset.change30d.toFixed(2)}%`, pos: asset.change30d >= 0 },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white/[0.02] p-6 rounded-3xl border border-white/5 space-y-3 shadow-inner">
-            <div className="text-[10px] uppercase tracking-[0.5em] font-black text-white/10">{stat.label}</div>
-            <div className={cn("font-mono text-xl tracking-tighter font-medium", stat.pos !== undefined ? (stat.pos ? "text-success" : "text-danger") : "text-white/80")}>
-              {stat.pos !== undefined && (stat.pos ? '↑ ' : '↓ ')}{stat.value}
+          { label: 'Price', value: `${currencySymbol}${asset.price.toLocaleString()}` },
+          { label: 'Cap', value: `${currencySymbol}${(asset.marketCap / 1e9).toFixed(2)}B` },
+          { label: '1H', val: asset.change1h },
+          { label: '24H', val: asset.change24h },
+          { label: '7D', val: asset.change7d },
+          { label: '30D', val: asset.change30d },
+        ].map((s, i) => (
+          <div key={i} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+            <div className="text-[9px] uppercase tracking-[0.3em] font-black text-white/10 mb-1">{s.label}</div>
+            <div className={cn(
+              "font-mono text-sm",
+              s.val !== undefined ? (s.val >= 0 ? "text-success" : "text-danger") : "text-white/80"
+            )}>
+              {s.val !== undefined ? `${s.val >= 0 ? '+' : ''}${s.val.toFixed(2)}%` : s.value}
             </div>
           </div>
         ))}
@@ -92,7 +106,7 @@ const TooltipPortal = ({ asset, mouseX, mouseY, currency, currencySymbol }: { as
 };
 
 export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredAsset, setHoveredAsset] = useState<CryptoAsset | null>(null);
@@ -101,40 +115,29 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
   const mouseY = useMotionValue(0);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const updateSize = () => {
+    const update = () => {
+      if (!containerRef.current) return;
       setDimensions({
-        width: containerRef.current?.offsetWidth || 0,
-        height: containerRef.current?.offsetHeight || 0,
+        width: containerRef.current.offsetWidth,
+        height: containerRef.current.offsetHeight,
       });
     };
-    updateSize();
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, [isFullscreen]);
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
-
   const { leaves, groups } = useMemo(() => {
-    if (dimensions.width === 0 || data.length === 0) return { leaves: [], groups: [] };
+    if (!dimensions.width || data.length === 0) return { leaves: [], groups: [] };
 
-    // Grouping logic refined for visual weight
+    // Grouping refined for maximum block stability
     const rootData = {
       name: 'market',
       children: Array.from(
         d3Array.group(data, (d: CryptoAsset) => {
-          if (d.rank <= 12) return 'Market Dominance';
-          if (d.rank <= 50) return 'Institutional Layer';
-          return 'Growth Vectors';
+          if (d.rank <= 10) return 'Majors';
+          if (d.rank <= 50) return 'Institutional';
+          return 'Growth';
         }), 
         ([key, value]) => ({ name: key, children: value })
       ),
@@ -146,17 +149,14 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
 
     const treemap = d3Hierarchy.treemap<any>()
       .size([dimensions.width, dimensions.height])
-      .tile(d3Hierarchy.treemapSquarify.ratio(1.2)) // AGGRESSIVE SQUARIFY: Prioritize squares to eliminate slivers
+      .tile(d3Hierarchy.treemapBinary) // THE FIX: treemapBinary is much more robust for avoiding thin columns
       .paddingInner(1)
-      .paddingOuter(10) // More breathing room between groups
-      .paddingTop(50)  // Tall headers for readability
+      .paddingOuter(2)
+      .paddingTop(30)
       .round(true);
 
     treemap(hierarchy);
-    return { 
-      leaves: hierarchy.leaves(),
-      groups: hierarchy.children || []
-    };
+    return { leaves: hierarchy.leaves(), groups: hierarchy.children || [] };
   }, [data, dimensions]);
 
   const getChange = (asset: CryptoAsset) => {
@@ -172,32 +172,34 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
     <div 
       ref={containerRef} 
       className={cn(
-        "relative overflow-hidden bg-[#050505] border border-white/5 backdrop-blur-[120px] transition-all duration-1000 shadow-[0_100px_200px_rgba(0,0,0,0.8)]",
-        isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "w-full min-w-[1000px] h-[82vh] rounded-[5rem]"
+        "relative overflow-hidden bg-[#050505] border border-white/5 backdrop-blur-[100px] transition-all duration-1000 shadow-2xl",
+        isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "w-full h-[80vh] rounded-[4rem]"
       )}
       onMouseMove={(e) => {
         mouseX.set(e.clientX);
         mouseY.set(e.clientY);
       }}
     >
-      {/* Category Labels (Fixed Position) */}
-      {groups.map((group: any) => (
+      {groups.map((g: any) => (
         <div 
-          key={group.data.name}
-          className="absolute z-20 pointer-events-none text-[13px] uppercase tracking-[1em] font-black text-white/10 pl-12 pt-6 mix-blend-plus-lighter"
-          style={{ left: group.x0, top: group.y0, width: group.x1 - group.x0 }}
+          key={g.data.name}
+          className="absolute z-20 pointer-events-none text-[11px] uppercase tracking-[0.6em] font-black text-white/10 pl-6 pt-3"
+          style={{ left: g.x0, top: g.y0, width: g.x1 - g.x0 }}
         >
-          {group.data.name}
+          {g.data.name}
         </div>
       ))}
 
-      {/* Control Surface */}
-      <div className="absolute top-12 right-12 z-30">
+      <div className="absolute top-10 right-10 z-30">
         <button 
-          onClick={toggleFullscreen}
-          className="p-7 rounded-full bg-white text-black hover:scale-110 active:scale-90 transition-all duration-700 shadow-[0_40px_80px_rgba(255,255,255,0.25)] group"
+          onClick={() => {
+            if (!document.fullscreenElement) containerRef.current?.requestFullscreen();
+            else document.exitFullscreen();
+            setIsFullscreen(!isFullscreen);
+          }}
+          className="p-6 rounded-full bg-white text-black hover:scale-110 active:scale-95 transition-all duration-500 shadow-2xl"
         >
-          {isFullscreen ? <Minimize2 size={28} /> : <Maximize2 size={28} />}
+          {isFullscreen ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
         </button>
       </div>
 
@@ -207,14 +209,13 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
           const width = leaf.x1 - leaf.x0;
           const height = leaf.y1 - leaf.y0;
           const change = getChange(asset);
-          const isPositive = change >= 0;
+          const isPos = change >= 0;
           
-          if (width <= 2 || height <= 2) return null;
+          if (width < 2 || height < 2) return null;
 
-          const baseSize = Math.min(width, height);
-          const symbolSize = Math.min(Math.max(baseSize / 2.5, 12), 72);
-          const showDetails = width > 110 && height > 90;
-          const showSymbol = width > 32 && height > 26;
+          const symbolSize = Math.min(Math.max(Math.min(width, height) / 2.5, 10), 64);
+          const showFull = width > 100 && height > 80;
+          const showSymbol = width > 25 && height > 20;
 
           return (
             <motion.div
@@ -223,76 +224,55 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
               onMouseEnter={() => setHoveredAsset(asset)}
               onMouseLeave={() => setHoveredAsset(null)}
               initial={{ opacity: 0 }}
-              animate={{ 
-                opacity: 1,
-                x: leaf.x0,
-                y: leaf.y0,
-                width,
-                height,
-              }}
+              animate={{ opacity: 1, x: leaf.x0, y: leaf.y0, width, height }}
               exit={{ opacity: 0 }}
-              transition={{ type: "spring", stiffness: 1000, damping: 70, mass: 0.4 }}
+              transition={{ type: "spring", stiffness: 500, damping: 50 }}
               className={cn(
-                "absolute overflow-hidden p-5 border group/asset cursor-none transition-colors duration-1000",
-                isPositive 
-                  ? "bg-success/[0.04] border-success/15 hover:bg-success/25 hover:border-success/80" 
-                  : "bg-danger/[0.04] border-danger/15 hover:bg-danger/25 hover:border-danger/80"
+                "absolute overflow-hidden p-2 border group transition-colors duration-700 cursor-crosshair",
+                isPos ? "bg-success/[0.03] border-success/10 hover:bg-success/20 hover:border-success/50" : "bg-danger/[0.03] border-danger/10 hover:bg-danger/20 hover:border-danger/50"
               )}
             >
               <div className="flex flex-col h-full items-center justify-center text-center">
                 {showSymbol ? (
                   <span 
-                    className="font-serif italic font-light tracking-tighter transition-all duration-1000 group-hover/asset:scale-110 group-hover/asset:tracking-[0.2em] group-hover/asset:text-white"
-                    style={{ fontSize: `${symbolSize}px`, color: isPositive ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)' }}
+                    className="font-serif italic font-light tracking-tighter transition-all group-hover:scale-110"
+                    style={{ fontSize: `${symbolSize}px`, color: isPos ? 'rgba(16, 185, 129, 0.6)' : 'rgba(239, 68, 68, 0.6)' }}
                   >
                     {asset.symbol.toUpperCase()}
                   </span>
                 ) : (
-                  <div className={cn(
-                    "w-3 h-3 rounded-full animate-pulse blur-[1px]",
-                    isPositive ? "bg-success/60 shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "bg-danger/60 shadow-[0_0_15px_rgba(239,68,68,0.5)]"
-                  )} />
+                  <div className={cn("w-2 h-2 rounded-full animate-pulse", isPos ? "bg-success/40" : "bg-danger/40")} />
                 )}
                 
-                {showDetails && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="mt-6 flex flex-col items-center gap-4"
-                  >
-                    <div className="font-mono text-[14px] text-white/40 tracking-tight font-medium">
-                      {currencySymbol}{asset.price.toLocaleString(undefined, { 
-                        minimumFractionDigits: asset.price < 1 ? 4 : 2,
-                        maximumFractionDigits: asset.price < 1 ? 6 : 2 
-                      })}
+                {showFull && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex flex-col items-center gap-2">
+                    <div className="font-mono text-[12px] text-white/30 tracking-tight">
+                      {currencySymbol}{asset.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </div>
                     <div className={cn(
-                      "text-[13px] font-black px-6 py-2.5 rounded-full border shadow-2xl transition-all duration-700 group-hover/asset:bg-white group-hover/asset:text-black",
-                      isPositive ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
+                      "text-[11px] font-black px-4 py-1.5 rounded-full border shadow-xl",
+                      isPos ? "bg-success/10 border-success/20 text-success" : "bg-danger/10 border-danger/20 text-danger"
                     )}>
-                      {isPositive ? '+ ' : ''}{change.toFixed(2)}%
+                      {isPos ? '+' : ''}{change.toFixed(2)}%
                     </div>
                   </motion.div>
                 )}
               </div>
-              
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover/asset:opacity-100 transition-opacity pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             </motion.div>
           );
         })}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {hoveredAsset && (
-          <TooltipPortal 
-            asset={hoveredAsset} 
-            mouseX={mouseX} 
-            mouseY={mouseY} 
-            currency={currency} 
-            currencySymbol={currencySymbol} 
-          />
-        )}
-      </AnimatePresence>
+      {hoveredAsset && (
+        <TooltipPortal 
+          asset={hoveredAsset} 
+          mouseX={mouseX} 
+          mouseY={mouseY} 
+          currency={currency} 
+          currencySymbol={currencySymbol} 
+        />
+      )}
     </div>
   );
 };
