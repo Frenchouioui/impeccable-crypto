@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import * as d3Hierarchy from 'd3-hierarchy';
 import * as d3Array from 'd3-array';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { CryptoAsset, Currency } from './types';
-import { Maximize2, Minimize2, TrendingUp, TrendingDown } from 'lucide-react';
+import type { CryptoAsset, Currency, Timeframe } from './types';
+import { Maximize2, Minimize2, TrendingUp, TrendingDown, Info } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,16 +14,17 @@ function cn(...inputs: ClassValue[]) {
 interface HeatmapProps {
   data: CryptoAsset[];
   currency: Currency;
+  timeframe: Timeframe;
 }
 
-export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
+export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = React.useState({ width: 0, height: 0 });
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredAsset, setHoveredAsset] = useState<CryptoAsset | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!containerRef.current) return;
     const updateSize = () => {
       setDimensions({
@@ -54,9 +55,9 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
       name: 'market',
       children: Array.from(
         d3Array.group(data, (d: CryptoAsset) => {
-          if (d.rank <= 10) return 'Majors';
-          if (d.rank <= 50) return 'Mid-Cap';
-          return 'Alt-Market';
+          if (d.rank <= 15) return 'Majors';
+          if (d.rank <= 60) return 'Mid-Cap';
+          return 'Emerging';
         }), 
         ([key, value]) => ({ name: key, children: value })
       ),
@@ -68,9 +69,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
 
     const treemap = d3Hierarchy.treemap<any>()
       .size([dimensions.width, dimensions.height])
+      .tile(d3Hierarchy.treemapBinary) // Creates more "square" boxes, prevents thin columns
       .paddingInner(1)
-      .paddingOuter(1)
-      .paddingTop(24) // Room for category headers
+      .paddingOuter(2)
+      .paddingTop(28)
       .round(true);
 
     treemap(hierarchy);
@@ -80,22 +82,35 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
     };
   }, [data, dimensions]);
 
+  const getChange = (asset: CryptoAsset) => {
+    if (timeframe === '1h') return asset.change1h;
+    if (timeframe === '7d') return asset.change7d;
+    if (timeframe === '30d') return asset.change30d;
+    return asset.change24h;
+  };
+
   const currencySymbol = currency === 'usd' ? '$' : '€';
 
   return (
     <div 
       ref={containerRef} 
       className={cn(
-        "relative overflow-hidden bg-black/40 border border-white/5 backdrop-blur-3xl transition-all duration-700",
-        isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "w-full h-[75vh] rounded-[2.5rem]"
+        "relative overflow-hidden bg-black/60 border border-white/5 backdrop-blur-[60px] transition-all duration-700 shadow-2xl",
+        isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "w-full h-[78vh] rounded-[3rem]"
       )}
       onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
     >
-      {/* Category Labels (Coin360 style) */}
+      {/* Mesh Gradients */}
+      <div className="absolute inset-0 opacity-30 pointer-events-none">
+        <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-white/[0.02] blur-[150px] rounded-full" />
+        <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-white/[0.01] blur-[150px] rounded-full" />
+      </div>
+
+      {/* Category Labels */}
       {groups.map((group: any) => (
         <div 
           key={group.data.name}
-          className="absolute z-10 pointer-events-none text-[9px] uppercase tracking-[0.3em] font-black text-white/20 pl-3 pt-1"
+          className="absolute z-10 pointer-events-none text-[10px] uppercase tracking-[0.4em] font-black text-white/10 pl-4 pt-2 mix-blend-difference"
           style={{ left: group.x0, top: group.y0, width: group.x1 - group.x0 }}
         >
           {group.data.name}
@@ -103,33 +118,29 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
       ))}
 
       {/* Fullscreen Toggle */}
-      <div className="absolute top-6 right-6 z-20">
+      <div className="absolute top-8 right-8 z-30">
         <button 
           onClick={toggleFullscreen}
-          className="p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/30 transition-all group backdrop-blur-md"
+          className="p-4 rounded-full bg-white text-black hover:scale-110 transition-all duration-500 shadow-2xl"
         >
-          {isFullscreen ? (
-            <Minimize2 size={16} className="text-white/60 group-hover:text-white" />
-          ) : (
-            <Maximize2 size={16} className="text-white/60 group-hover:text-white" />
-          )}
+          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
         </button>
       </div>
 
-      {/* Heatmap Leaves */}
       <AnimatePresence mode="popLayout">
         {leaves.map((leaf: any) => {
           const asset = leaf.data as CryptoAsset;
           const width = leaf.x1 - leaf.x0;
           const height = leaf.y1 - leaf.y0;
-          const isPositive = asset.change24h >= 0;
+          const change = getChange(asset);
+          const isPositive = change >= 0;
           
           if (width <= 4 || height <= 4) return null;
 
           const baseSize = Math.min(width, height);
-          const symbolSize = Math.min(Math.max(baseSize / 3, 8), 42);
-          const showDetails = width > 75 && height > 55;
-          const showSymbol = width > 18 && height > 14;
+          const symbolSize = Math.min(Math.max(baseSize / 3, 9), 48);
+          const showDetails = width > 80 && height > 60;
+          const showSymbol = width > 18 && height > 15;
 
           return (
             <motion.div
@@ -146,18 +157,18 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
                 height,
               }}
               exit={{ opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 40, mass: 1 }}
+              transition={{ type: "spring", stiffness: 500, damping: 45, mass: 0.8 }}
               className={cn(
-                "absolute overflow-hidden p-1 border group cursor-pointer transition-colors duration-1000",
+                "absolute overflow-hidden p-2 border group cursor-crosshair transition-colors duration-1000",
                 isPositive 
-                  ? "bg-success/5 border-success/10 hover:bg-success/20 hover:border-success/50" 
-                  : "bg-danger/5 border-danger/10 hover:bg-danger/20 hover:border-danger/50"
+                  ? "bg-success/5 border-success/10 hover:bg-success/25 hover:border-success/60" 
+                  : "bg-danger/5 border-danger/10 hover:bg-danger/25 hover:border-danger/60"
               )}
             >
               <div className="flex flex-col h-full items-center justify-center text-center">
                 {showSymbol && (
                   <span 
-                    className="font-serif italic font-light tracking-tighter"
+                    className="font-serif italic font-light tracking-tighter transition-all duration-700 group-hover:scale-110 group-hover:tracking-wider"
                     style={{ fontSize: `${symbolSize}px` }}
                   >
                     {asset.symbol.toUpperCase()}
@@ -166,78 +177,77 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency }) => {
                 
                 {showDetails && (
                   <motion.div 
-                    initial={{ opacity: 0, y: 5 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-2 flex flex-col items-center gap-1"
+                    className="mt-3 flex flex-col items-center gap-1.5"
                   >
-                    <div className="font-mono text-[10px] text-white/40 tracking-tighter">
+                    <div className="font-mono text-[11px] text-white/40 tracking-tighter">
                       {currencySymbol}{asset.price.toLocaleString(undefined, { 
                         minimumFractionDigits: asset.price < 1 ? 4 : 2,
                         maximumFractionDigits: asset.price < 1 ? 6 : 2 
                       })}
                     </div>
                     <div className={cn(
-                      "text-[9px] font-black px-2 py-0.5 rounded-full border",
-                      isPositive ? "bg-success/10 border-success/20 text-success" : "bg-danger/10 border-danger/20 text-danger"
+                      "text-[10px] font-black px-3 py-1 rounded-full border shadow-sm",
+                      isPositive ? "bg-success text-black border-transparent" : "bg-danger text-black border-transparent"
                     )}>
-                      {isPositive ? '+' : ''}{asset.change24h.toFixed(2)}%
+                      {isPositive ? '+' : ''}{change.toFixed(2)}%
                     </div>
                   </motion.div>
                 )}
               </div>
               
-              {/* Highlight Overlay */}
               <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             </motion.div>
           );
         })}
       </AnimatePresence>
 
-      {/* Luxury Impeccable Tooltip (anchored to mouse) */}
+      {/* FIXED TOOLTIP ENGINE: Adaptive Positioning */}
       <AnimatePresence>
         {hoveredAsset && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="fixed pointer-events-none z-[1000] p-6 bg-zinc-950/90 border border-white/10 backdrop-blur-2xl rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.8)] min-w-[240px] space-y-4"
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="fixed pointer-events-none z-[1000] p-8 bg-zinc-950/95 border border-white/10 backdrop-blur-[40px] rounded-[2rem] shadow-[0_40px_100px_rgba(0,0,0,0.9)] min-w-[320px] space-y-6"
             style={{ 
-              left: mousePos.x + 20, 
-              top: mousePos.y + 20,
-              // Adjust position if too close to screen edges
-              transform: `translateX(${mousePos.x > window.innerWidth - 300 ? '-100%' : '0'}) translateY(${mousePos.y > window.innerHeight - 300 ? '-100%' : '0'})`
+              left: mousePos.x + 25, 
+              top: mousePos.y + 25,
+              // ADVANCED COLLISION: If mouse is in right half of screen, shift tooltip to the left
+              transform: `translateX(${mousePos.x > window.innerWidth / 2 ? '-110%' : '0%'}) translateY(${mousePos.y > window.innerHeight / 2 ? '-110%' : '0%'})`
             }}
           >
             <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <img src={hoveredAsset.image} className="w-6 h-6 rounded-full" alt="" />
-                  <span className="text-xl font-serif italic tracking-tighter">{hoveredAsset.name}</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/5 p-2 flex items-center justify-center border border-white/10">
+                    <img src={hoveredAsset.image} className="w-full h-full rounded-full" alt="" />
+                  </div>
+                  <span className="text-3xl font-serif italic tracking-tighter">{hoveredAsset.name}</span>
                 </div>
-                <div className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20">{hoveredAsset.symbol} / {currency.toUpperCase()}</div>
+                <div className="text-[11px] uppercase tracking-[0.4em] font-black text-white/30">{hoveredAsset.symbol} / {currency.toUpperCase()}</div>
               </div>
-              <div className={cn(
-                "p-2 rounded-xl border flex items-center gap-1",
-                hoveredAsset.change24h >= 0 ? "bg-success/10 border-success/20 text-success" : "bg-danger/10 border-danger/20 text-danger"
-              )}>
-                {hoveredAsset.change24h >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                <span className="text-xs font-black">{Math.abs(hoveredAsset.change24h).toFixed(2)}%</span>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] uppercase tracking-widest font-black text-white/20">Market Rank</span>
+                <span className="text-xl font-mono text-white/90">#{hoveredAsset.rank}</span>
               </div>
             </div>
 
-            <div className="space-y-3 pt-2">
-              <div className="flex justify-between border-b border-white/5 pb-2">
-                <span className="text-[9px] uppercase tracking-widest font-bold text-white/20">Current Price</span>
-                <span className="font-mono text-sm">{currencySymbol}{hoveredAsset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 pb-2">
-                <span className="text-[9px] uppercase tracking-widest font-bold text-white/20">Market Cap</span>
-                <span className="font-mono text-sm opacity-60">{currencySymbol}{(hoveredAsset.marketCap / 1e9).toFixed(2)}B</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[9px] uppercase tracking-widest font-bold text-white/20">Market Rank</span>
-                <span className="font-mono text-sm text-accent">#{hoveredAsset.rank}</span>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Current Price', value: `${currencySymbol}${hoveredAsset.price.toLocaleString()}` },
+                { label: 'Market Cap', value: `${currencySymbol}${(hoveredAsset.marketCap / 1e9).toFixed(2)}B` },
+                { label: '1H Change', value: `${hoveredAsset.change1h.toFixed(2)}%`, color: hoveredAsset.change1h >= 0 ? 'text-success' : 'text-danger' },
+                { label: '24H Change', value: `${hoveredAsset.change24h.toFixed(2)}%`, color: hoveredAsset.change24h >= 0 ? 'text-success' : 'text-danger' },
+                { label: '7D Change', value: `${hoveredAsset.change7d.toFixed(2)}%`, color: hoveredAsset.change7d >= 0 ? 'text-success' : 'text-danger' },
+                { label: '30D Change', value: `${hoveredAsset.change30d.toFixed(2)}%`, color: hoveredAsset.change30d >= 0 ? 'text-success' : 'text-danger' },
+              ].map((stat, i) => (
+                <div key={i} className="space-y-1 bg-white/[0.03] p-3 rounded-xl border border-white/5">
+                  <div className="text-[9px] uppercase tracking-[0.2em] font-black text-white/20">{stat.label}</div>
+                  <div className={cn("font-mono text-sm", stat.color || "text-white/80")}>{stat.value}</div>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
