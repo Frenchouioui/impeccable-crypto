@@ -3,7 +3,7 @@ import * as d3Hierarchy from 'd3-hierarchy';
 import * as d3Array from 'd3-array';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { CryptoAsset, Currency, Timeframe } from './types';
-import { Maximize2, Minimize2, TrendingUp, TrendingDown, Info } from 'lucide-react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
