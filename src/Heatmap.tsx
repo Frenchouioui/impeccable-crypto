@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as d3Hierarchy from 'd3-hierarchy';
 import * as d3Array from 'd3-array';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useSpring, useMotionValue } from 'framer-motion';
 import type { CryptoAsset, Currency, Timeframe } from './types';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, TrendingUp, TrendingDown } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -17,12 +18,87 @@ interface HeatmapProps {
   timeframe: Timeframe;
 }
 
+// Custom Tooltip Component rendered via Portal
+const TooltipPortal = ({ asset, mouseX, mouseY, currency, currencySymbol }: { asset: CryptoAsset, mouseX: any, mouseY: any, currency: string, currencySymbol: string }) => {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current) {
+      setSize({ width: ref.current.offsetWidth, height: ref.current.offsetHeight });
+    }
+  }, [asset]);
+
+  // Adaptive positioning logic
+  const x = useSpring(mouseX, { stiffness: 1000, damping: 100 });
+  const y = useSpring(mouseY, { stiffness: 1000, damping: 100 });
+
+  const isRightHalf = mouseX.get() > window.innerWidth / 2;
+  const isBottomHalf = mouseY.get() > window.innerHeight / 2;
+
+  return createPortal(
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      style={{
+        position: 'fixed',
+        left: x,
+        top: y,
+        pointerEvents: 'none',
+        zIndex: 9999,
+        x: isRightHalf ? -size.width - 20 : 20,
+        y: isBottomHalf ? -size.height - 20 : 20,
+      }}
+      className="p-8 bg-zinc-950/95 border border-white/10 backdrop-blur-[50px] rounded-[2.5rem] shadow-[0_50px_100px_rgba(0,0,0,0.9)] min-w-[340px] space-y-6"
+    >
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-white/5 p-2.5 flex items-center justify-center border border-white/10">
+              <img src={asset.image} className="w-full h-full rounded-full" alt="" />
+            </div>
+            <span className="text-4xl font-serif italic tracking-tighter">{asset.name}</span>
+          </div>
+          <div className="text-[12px] uppercase tracking-[0.5em] font-black text-white/30">{asset.symbol} / {currency.toUpperCase()}</div>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-widest font-black text-white/20">Rank</span>
+          <span className="text-2xl font-mono text-white/90">#{asset.rank}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'Current Price', value: `${currencySymbol}${asset.price.toLocaleString()}` },
+          { label: 'Market Cap', value: `${currencySymbol}${(asset.marketCap / 1e9).toFixed(2)}B` },
+          { label: '1H', value: `${asset.change1h.toFixed(2)}%`, pos: asset.change1h >= 0 },
+          { label: '24H', value: `${asset.change24h.toFixed(2)}%`, pos: asset.change24h >= 0 },
+          { label: '7D', value: `${asset.change7d.toFixed(2)}%`, pos: asset.change7d >= 0 },
+          { label: '30D', value: `${asset.change30d.toFixed(2)}%`, pos: asset.change30d >= 0 },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-1">
+            <div className="text-[9px] uppercase tracking-[0.3em] font-black text-white/20">{stat.label}</div>
+            <div className={cn("font-mono text-sm", stat.pos !== undefined ? (stat.pos ? "text-success" : "text-danger") : "text-white/80")}>
+              {stat.pos !== undefined && (stat.pos ? '+' : '')}{stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>,
+    document.body
+  );
+};
+
 export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredAsset, setHoveredAsset] = useState<CryptoAsset | null>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -69,10 +145,10 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
 
     const treemap = d3Hierarchy.treemap<any>()
       .size([dimensions.width, dimensions.height])
-      .tile(d3Hierarchy.treemapBinary) // Creates more "square" boxes, prevents thin columns
+      .tile(d3Hierarchy.treemapSquarified) // OPTIMUM: Forces squarer boxes, eliminates thin columns
       .paddingInner(1)
-      .paddingOuter(2)
-      .paddingTop(28)
+      .paddingOuter(4)
+      .paddingTop(32)
       .round(true);
 
     treemap(hierarchy);
@@ -95,35 +171,39 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
     <div 
       ref={containerRef} 
       className={cn(
-        "relative overflow-hidden bg-black/60 border border-white/5 backdrop-blur-[60px] transition-all duration-700 shadow-2xl",
-        isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "w-full h-[78vh] rounded-[3rem]"
+        "relative overflow-hidden bg-black/60 border border-white/5 backdrop-blur-[80px] transition-all duration-700 shadow-2xl group/terminal",
+        isFullscreen ? "fixed inset-0 z-[100] w-screen h-screen rounded-none" : "w-full h-[78vh] rounded-[3.5rem]"
       )}
-      onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+      onMouseMove={(e) => {
+        mouseX.set(e.clientX);
+        mouseY.set(e.clientY);
+      }}
     >
-      {/* Mesh Gradients */}
-      <div className="absolute inset-0 opacity-30 pointer-events-none">
-        <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-white/[0.02] blur-[150px] rounded-full" />
-        <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-white/[0.01] blur-[150px] rounded-full" />
+      {/* Dynamic Ambient Background */}
+      <div className="absolute inset-0 opacity-40 pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-tr from-white/[0.01] to-transparent" />
+        <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-success/5 blur-[180px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] bg-danger/5 blur-[180px] rounded-full animate-pulse" />
       </div>
 
-      {/* Category Labels */}
+      {/* Category Labels (Improved Contrast) */}
       {groups.map((group: any) => (
         <div 
           key={group.data.name}
-          className="absolute z-10 pointer-events-none text-[10px] uppercase tracking-[0.4em] font-black text-white/10 pl-4 pt-2 mix-blend-difference"
+          className="absolute z-20 pointer-events-none text-[11px] uppercase tracking-[0.5em] font-black text-white/20 pl-6 pt-3"
           style={{ left: group.x0, top: group.y0, width: group.x1 - group.x0 }}
         >
           {group.data.name}
         </div>
       ))}
 
-      {/* Fullscreen Toggle */}
-      <div className="absolute top-8 right-8 z-30">
+      {/* Control Surface */}
+      <div className="absolute top-10 right-10 z-30">
         <button 
           onClick={toggleFullscreen}
-          className="p-4 rounded-full bg-white text-black hover:scale-110 transition-all duration-500 shadow-2xl"
+          className="p-5 rounded-full bg-white text-black hover:scale-110 active:scale-95 transition-all duration-500 shadow-[0_20px_40px_rgba(255,255,255,0.2)]"
         >
-          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
         </button>
       </div>
 
@@ -138,9 +218,9 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
           if (width <= 4 || height <= 4) return null;
 
           const baseSize = Math.min(width, height);
-          const symbolSize = Math.min(Math.max(baseSize / 3, 9), 48);
-          const showDetails = width > 80 && height > 60;
-          const showSymbol = width > 18 && height > 15;
+          const symbolSize = Math.min(Math.max(baseSize / 3, 10), 54);
+          const showDetails = width > 90 && height > 70;
+          const showSymbol = width > 24 && height > 18;
 
           return (
             <motion.div
@@ -157,39 +237,41 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                 height,
               }}
               exit={{ opacity: 0 }}
-              transition={{ type: "spring", stiffness: 500, damping: 45, mass: 0.8 }}
+              transition={{ type: "spring", stiffness: 600, damping: 50, mass: 0.6 }}
               className={cn(
-                "absolute overflow-hidden p-2 border group cursor-crosshair transition-colors duration-1000",
+                "absolute overflow-hidden p-3 border group/asset cursor-none transition-colors duration-1000",
                 isPositive 
-                  ? "bg-success/5 border-success/10 hover:bg-success/25 hover:border-success/60" 
-                  : "bg-danger/5 border-danger/10 hover:bg-danger/25 hover:border-danger/60"
+                  ? "bg-success/5 border-success/15 hover:bg-success/30 hover:border-success/80" 
+                  : "bg-danger/5 border-danger/15 hover:bg-danger/30 hover:border-danger/80"
               )}
             >
               <div className="flex flex-col h-full items-center justify-center text-center">
-                {showSymbol && (
+                {showSymbol ? (
                   <span 
-                    className="font-serif italic font-light tracking-tighter transition-all duration-700 group-hover:scale-110 group-hover:tracking-wider"
+                    className="font-serif italic font-light tracking-tighter transition-all duration-1000 group-hover/asset:scale-110 group-hover/asset:tracking-widest"
                     style={{ fontSize: `${symbolSize}px` }}
                   >
                     {asset.symbol.toUpperCase()}
                   </span>
+                ) : (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/20 group-hover/asset:bg-white animate-pulse" />
                 )}
                 
                 {showDetails && (
                   <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 flex flex-col items-center gap-1.5"
+                    className="mt-4 flex flex-col items-center gap-2"
                   >
-                    <div className="font-mono text-[11px] text-white/40 tracking-tighter">
+                    <div className="font-mono text-[12px] text-white/40 tracking-tighter">
                       {currencySymbol}{asset.price.toLocaleString(undefined, { 
                         minimumFractionDigits: asset.price < 1 ? 4 : 2,
                         maximumFractionDigits: asset.price < 1 ? 6 : 2 
                       })}
                     </div>
                     <div className={cn(
-                      "text-[10px] font-black px-3 py-1 rounded-full border shadow-sm",
-                      isPositive ? "bg-success text-black border-transparent" : "bg-danger text-black border-transparent"
+                      "text-[11px] font-black px-4 py-1.5 rounded-full border shadow-2xl transition-all duration-700 group-hover/asset:bg-white group-hover/asset:text-black",
+                      isPositive ? "bg-success/20 border-success/30 text-success" : "bg-danger/20 border-danger/30 text-danger"
                     )}>
                       {isPositive ? '+' : ''}{change.toFixed(2)}%
                     </div>
@@ -197,59 +279,22 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, currency, timeframe }) =
                 )}
               </div>
               
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover/asset:opacity-100 transition-opacity pointer-events-none" />
             </motion.div>
           );
         })}
       </AnimatePresence>
 
-      {/* FIXED TOOLTIP ENGINE: Adaptive Positioning */}
+      {/* PORTAL TOOLTIP */}
       <AnimatePresence>
         {hoveredAsset && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed pointer-events-none z-[1000] p-8 bg-zinc-950/95 border border-white/10 backdrop-blur-[40px] rounded-[2rem] shadow-[0_40px_100px_rgba(0,0,0,0.9)] min-w-[320px] space-y-6"
-            style={{ 
-              left: mousePos.x + 25, 
-              top: mousePos.y + 25,
-              // ADVANCED COLLISION: If mouse is in right half of screen, shift tooltip to the left
-              transform: `translateX(${mousePos.x > window.innerWidth / 2 ? '-110%' : '0%'}) translateY(${mousePos.y > window.innerHeight / 2 ? '-110%' : '0%'})`
-            }}
-          >
-            <div className="flex justify-between items-start">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/5 p-2 flex items-center justify-center border border-white/10">
-                    <img src={hoveredAsset.image} className="w-full h-full rounded-full" alt="" />
-                  </div>
-                  <span className="text-3xl font-serif italic tracking-tighter">{hoveredAsset.name}</span>
-                </div>
-                <div className="text-[11px] uppercase tracking-[0.4em] font-black text-white/30">{hoveredAsset.symbol} / {currency.toUpperCase()}</div>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[10px] uppercase tracking-widest font-black text-white/20">Market Rank</span>
-                <span className="text-xl font-mono text-white/90">#{hoveredAsset.rank}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: 'Current Price', value: `${currencySymbol}${hoveredAsset.price.toLocaleString()}` },
-                { label: 'Market Cap', value: `${currencySymbol}${(hoveredAsset.marketCap / 1e9).toFixed(2)}B` },
-                { label: '1H Change', value: `${hoveredAsset.change1h.toFixed(2)}%`, color: hoveredAsset.change1h >= 0 ? 'text-success' : 'text-danger' },
-                { label: '24H Change', value: `${hoveredAsset.change24h.toFixed(2)}%`, color: hoveredAsset.change24h >= 0 ? 'text-success' : 'text-danger' },
-                { label: '7D Change', value: `${hoveredAsset.change7d.toFixed(2)}%`, color: hoveredAsset.change7d >= 0 ? 'text-success' : 'text-danger' },
-                { label: '30D Change', value: `${hoveredAsset.change30d.toFixed(2)}%`, color: hoveredAsset.change30d >= 0 ? 'text-success' : 'text-danger' },
-              ].map((stat, i) => (
-                <div key={i} className="space-y-1 bg-white/[0.03] p-3 rounded-xl border border-white/5">
-                  <div className="text-[9px] uppercase tracking-[0.2em] font-black text-white/20">{stat.label}</div>
-                  <div className={cn("font-mono text-sm", stat.color || "text-white/80")}>{stat.value}</div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+          <TooltipPortal 
+            asset={hoveredAsset} 
+            mouseX={mouseX} 
+            mouseY={mouseY} 
+            currency={currency} 
+            currencySymbol={currencySymbol} 
+          />
         )}
       </AnimatePresence>
     </div>
